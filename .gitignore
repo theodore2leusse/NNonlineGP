@@ -1,0 +1,5 @@
+data/*
+draft.ipynb
+
+# Ignore __pycache__ directories
+__pycache__/
