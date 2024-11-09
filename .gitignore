@@ -1,5 +1,7 @@
 data/*
+dataset/*
 draft.ipynb
+*.png
 
 # Ignore __pycache__ directories
 __pycache__/
