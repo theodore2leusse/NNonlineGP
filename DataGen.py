@@ -76,8 +76,8 @@ class DataGen():
         set_kernel(kernel_type, noise_std, output_std, lengthscale):
             Configures the kernel for the Gaussian Process.
 
-        get_maps_kernel(kernel_type, noise_std, output_std, lengthscale):
-            Generates and stores kernel maps for the input space.
+        get_elem_maps(kernel_type, noise_std, output_std, lengthscale):
+            Generates element maps for all elements in the map.
 
         pkl_save(L, name):
             Saves a list to a pickle file.
@@ -230,10 +230,11 @@ class DataGen():
         else:
             raise ValueError("The attribute lengthscale is not well defined")
         
-    def get_maps_kernel(self, kernel_type, noise_std, output_std, lengthscale) -> None:
+    def get_elem_maps(self, kernel_type, noise_std, output_std, lengthscale) -> None:
         """
-        Generates kernel maps for all elements in the map.
-        Initially, we will normalize the kernel by capping the maximum at 1.
+        Generates element maps for all elements in the map.
+        For each 'pixel', we will generate mean and std map for a unique query : 
+                    x="this pixel"      and     y=1.
 
         Args:
             kernel_type (str): The type of kernel ('rbf', 'Mat32', 'Mat52').
@@ -241,13 +242,18 @@ class DataGen():
             output_std (float): Output standard deviation.
             lengthscale (float or list): Lengthscale(s) for the kernel.
         """
-        self.maps_kernel = np.full((self.space_size, self.map.shape[0], self.map.shape[1]), np.nan)
+        self.maps_elem_mean = np.full((self.space_size, self.map.shape[0], self.map.shape[1]), np.nan)
+        self.maps_elem_std = np.full((self.space_size, self.map.shape[0], self.map.shape[1]), np.nan)
         self.set_kernel(kernel_type, noise_std, output_std, lengthscale)
         for i in range(self.space_size):
-            kernel_vect_mat = self.kernel.K(self.X_test_normed, self.X_test_normed[i:i+1])
-            kernel_vect_mat = kernel_vect_mat/np.max(kernel_vect_mat)
+            elem_gp = FixedGP(input_space=self.X_test_normed, 
+                              train_X=self.X_test_normed[i:i+1], train_Y=np.array([[1.]]), 
+                              kernel_type=kernel_type, noise_std=noise_std, 
+                              output_std=output_std, lengthscale=lengthscale)
+            elem_mean, elem_std = elem_gp.predict()
             for j in range(self.space_size):
-                self.maps_kernel[i, int(self.ch2xy[j,0]-1), int(self.ch2xy[j,1]-1)] = kernel_vect_mat[j]
+                self.maps_elem_mean[i, int(self.ch2xy[j,0]-1), int(self.ch2xy[j,1]-1)] = elem_mean[j]
+                self.maps_elem_std[i, int(self.ch2xy[j,0]-1), int(self.ch2xy[j,1]-1)] = elem_std[j]
 
     def pkl_save(self, L: list, name: str):
         """Save a list to a pickle file.
@@ -429,7 +435,7 @@ class DataGen():
 
         # Extract metadata and initialize tensors for formatted data.
         nb_queries, nb_comb, kernel_type, noise_std, output_std, lengthscale = pre_labeled_inputs[-2]
-        self.get_maps_kernel(kernel_type, noise_std, output_std, lengthscale)
+        self.get_elem_maps(kernel_type, noise_std, output_std, lengthscale)
 
         train_input = torch.full((nb_comb, 4, self.map.shape[0], self.map.shape[1]), torch.nan)
         train_label = torch.full((nb_comb, 2, self.map.shape[0], self.map.shape[1]), torch.nan)
@@ -438,8 +444,8 @@ class DataGen():
             # Convert maps to images for training inputs and labels.
             img_mean_input = self.map_to_img(pre_labeled_inputs[i][0])
             img_std_input = self.map_to_img(pre_labeled_inputs[i][1])
-            img_query_x = self.map_to_img(self.maps_kernel[pre_labeled_inputs[i][2]])
-            img_query_y = self.map_to_img(self.maps_kernel[pre_labeled_inputs[i][2]]) * pre_labeled_inputs[i][4]
+            img_query_x = self.map_to_img(self.maps_elem_std[pre_labeled_inputs[i][2]])
+            img_query_y = self.map_to_img(self.maps_elem_mean[pre_labeled_inputs[i][2]]) * pre_labeled_inputs[i][4]
 
             train_input[i] = torch.cat((img_mean_input, img_std_input, img_query_x, img_query_y), dim=1)
 
