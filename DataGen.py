@@ -262,7 +262,7 @@ class DataGen():
             L (list): The list to save.
             name (str): The name of the pickle file (without extension).
         """
-        with open('dataset/'+name+'.pkl', 'wb') as f:
+        with open('dataset/pkl_files/'+name+'.pkl', 'wb') as f:
             pickle.dump(L, f)
 
     def pkl_load(self, name: str):
@@ -274,7 +274,7 @@ class DataGen():
         Returns:
             list: The loaded list from the pickle file.
         """
-        with open('dataset/'+name+'.pkl', 'rb') as f:
+        with open('dataset/pkl_files/'+name+'.pkl', 'rb') as f:
             L = pickle.load(f)
         return L
 
@@ -460,4 +460,4 @@ class DataGen():
             "train_label": train_label,
             "description": f"These labeled inputs have the original form.\nThese labeled inputs were made with these parameters:\n name: {name}\n nb_queries: {nb_queries}\n nb_comb: {nb_comb}\n kernel_type: {kernel_type}\n noise_std: {noise_std}\n output_std: {output_std}\n lengthscale: {lengthscale}"
         }
-        torch.save(data_to_save, 'dataset/og_'+name+'.pth')
+        torch.save(data_to_save, 'dataset/single_map/og_'+name+'.pth')
