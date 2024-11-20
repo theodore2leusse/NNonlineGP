@@ -330,23 +330,32 @@ class DataGen():
         
         return(idx_inputs)
     
-    def get_inputs_for_GPs(self, train_X_idx: list, query_x_idx: int):
-        """Prepare inputs and labels for Gaussian Process training.
+    def get_inputs_for_GPs(self, train_X_idx: list, query_x_idx: int) -> tuple:
+        """
+        Prepare inputs and labels for Gaussian Process training.
 
         This function standardizes inputs and labels based on a selected approach 
         to ensure consistency in data representation for Gaussian Processes.
 
         We have several options: 
-            1- Standardize \( Y_n \) and \( Y_{n+1} \) independently and transform \( y_{n+1} \) using the mean and standard deviation of \( Y_{n+1} \).
-            2- Standardize \( Y_n \), and transform both \( Y_n \) and \( y_{n+1} \) using the mean and standard deviation of \( Y_n \).
-            3- Standardize \( Y_{n+1} \), and transform both \( Y_n \) and \( y_{n+1} \) using the mean and standard deviation of \( Y_{n+1} \).
+            1- Standardize Y_n and Y_{n+1} independently and transform y_{n+1} using the mean and standard 
+               deviation of Y_{n+1}.
+            2- Standardize Y_n, and transform both Y_n and y_{n+1} using the mean and standard deviation 
+               of Y_n.
+            3- Standardize Y_{n+1}, and transform both Y_n and y_{n+1} using the mean and standard deviation 
+               of Y_{n+1}.
 
-        Option 1 is quite convincing because the model is intended to work online. With this method, the label at iteration \( n \) is the input for iteration \( n+1 \), which is desirable.
+        Option 1 is quite convincing because the model is intended to work online. With this method, 
+        the label at iteration n is the input for iteration n+1, which is desirable.
 
-        However, option 1 also has the disadvantage of modifying the first \( n \) queries when transitioning from \( Y_n \) to \( Y_{n+1} \), since \( Y_n \) and \( Y_{n+1} \) are standardized differently. 
-        In other words, \( \text{train\_label} \neq \text{train\_input.append(query\_y)} \).
+        However, option 1 also has the disadvantage of modifying the first n queries when transitioning 
+        from Y_n to Y_{n+1}, since Y_n and Y_{n+1} are standardized differently. 
+        In other words, train_label != train_input.append(query_y).
 
-        Therefore, we choose option 3, which certainly has the disadvantage that the label at iteration \( n \) will be different from the input at iteration \( n+1 \) (as they are standardized differently), but it has the advantage that \( \text{train\_label} = \text{train\_input.append(query\_y)} \), which we consider very beneficial for training our model.
+        Therefore, we choose option 3, which certainly has the disadvantage that the label at iteration n 
+        will be different from the input at iteration n+1 (as they are standardized differently), 
+        but it has the advantage that train_label = train_input.append(query_y), which we consider very 
+        beneficial for training our model.
 
         Args:
             train_X_idx (list): List of indices for training input.
@@ -355,8 +364,6 @@ class DataGen():
         Returns:
             tuple: Contains training inputs, training labels, query data, and full labeled data.
         """
-
-
         train_X_label = self.X_test_normed[train_X_idx + [query_x_idx]]
         train_Y_label = self.map_idx[train_X_idx + [query_x_idx]].reshape(-1,1)
         train_Y_label = standardize_vector(train_Y_label)
