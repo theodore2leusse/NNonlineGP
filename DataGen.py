@@ -98,7 +98,7 @@ class DataGen():
             In contrast to generate_combinations and new_generate_combinations, which perform draws without discount 
             (they don't allow repetitions), generate_selections allows repetitions. 
 
-        generate_idx_inputs(nb_queries, nb_comb=None):
+        generate_idx_inputs(self, nb_queries: int, nb_comb: int = None, combination: bool = False, combination_without_rep: bool = False):
             Creates input indices for Gaussian Process training and querying.
 
         get_inputs_for_GPs(train_X_idx, query_x_idx):
@@ -353,26 +353,39 @@ class DataGen():
         
         return random_selections
     
-    def generate_idx_inputs(self, nb_queries: int, nb_comb: int = None) -> list:
+    def generate_idx_inputs(self, nb_queries: int, nb_comb: int = None, combination: bool = False, combination_without_rep: bool = False) -> list:
         """Generate indexed inputs with random selection for queries.
 
         Args:
             nb_queries (int): The number of queries per combination.
             nb_comb (int, optional): The number of combinations to generate. Defaults to None.
+            combination (bool, optional): If False, we use sampling with replacement. If True, we use sampling without replacement. 
+                                          Defaults to False.  
+            combination_without_rep (bool, optional): If False, combinations could be repetitive in the dataset. 
+                                                      If True, each combination is unique. Defaults to False.
 
         Returns:
-            list: A list of indexed inputs, each containing a combination and a randomly selected query index.
+            list: A list of indexed inputs, each containing a selection and a randomly selected query index.
         """
-        # Generate nb_comb combinations of size `nb_queries` from integers 0 to space_size-1
-        selected_combinations = self.generate_combinations(nb_queries=nb_queries, nb_comb=nb_comb)
+        if combination:
+            if combination_without_rep:
+                # Generate nb_comb combinations of size `nb_queries` from integers 0 to space_size-1
+                selected_selections = self.generate_combinations(nb_queries=nb_queries, nb_comb=nb_comb)
+            else:
+                # Generate nb_comb combinations of size `nb_queries` from integers 0 to space_size-1
+                selected_selections = self.new_generate_combinations(nb_queries=nb_queries, nb_comb=nb_comb)
+        else:
+            # Generate nb_comb selections of size `nb_queries` from integers 0 to space_size-1
+            selected_selections = self.generate_selections(nb_queries=nb_queries, nb_comb=nb_comb)
+
 
         # Generate a random vector of size `nb_comb` with integers from 0 to `nb_queries-1`
         random_idx = np.random.randint(0, nb_queries, size=nb_comb)
 
         idx_inputs = []
         for i in range(nb_comb):
-            q = selected_combinations[i].pop(random_idx[i])
-            idx_inputs.append([selected_combinations[i], q])
+            q = selected_selections[i].pop(random_idx[i])
+            idx_inputs.append([selected_selections[i], q])
         
         return(idx_inputs)
     
@@ -424,7 +437,8 @@ class DataGen():
 
     def generate_pre_labeled_inputs(self, name: str, nb_queries: int, nb_comb: int = None, 
                                     kernel_type: str = 'rbf', noise_std=0.1, 
-                                    output_std=1, lengthscale=0.05) -> None:
+                                    output_std=1, lengthscale=0.05, 
+                                    combination: bool = False, combination_without_rep: bool = False) -> None:
         """Generate pre-labeled data for Gaussian Processes and save it.
 
         Args:
@@ -435,9 +449,17 @@ class DataGen():
             noise_std (float): The noise standard deviation. Defaults to 0.1.
             output_std (float): The output standard deviation. Defaults to 1.
             lengthscale (float): The kernel lengthscale. Defaults to 0.05.
+            combination (bool, optional): If False, we use sampling with replacement. If True, we use sampling without replacement. 
+                                          Defaults to False.  
+            combination_without_rep (bool, optional): If False, combinations could be repetitive in the dataset. 
+                                                      If True, each combination is unique. Defaults to False.
         """
+
+        if (not combination) and (combination_without_rep):
+            raise ValueError("combination_without_rep cannot be True if combination is False")
         # Generate indexed inputs for GP training.
-        idx_inputs = self.generate_idx_inputs(nb_queries=nb_queries, nb_comb=nb_comb)
+        idx_inputs = self.generate_idx_inputs(nb_queries=nb_queries, nb_comb=nb_comb, 
+                                              combination=combination, combination_without_rep=combination_without_rep)
         pre_labeled_inputs = []
 
         for i in range(nb_comb):
@@ -470,11 +492,29 @@ class DataGen():
                                    query_x_idx, query_x, query_y, 
                                    map_mean_label, map_std_label])
 
+        if combination:
+            if combination_without_rep:
+                generation_method = "we have used sampling without replacement to choose the queries. And all the samples are uniques"
+                self.LETTER = 'A_'
+            else:
+                generation_method = "we have used sampling without replacement to choose the queries. And all the samples are NOT uniques"
+                self.LETTER = 'B_'
+        else:
+            generation_method = "we have used sampling with replacement to choose the queries. And all the samples are NOT uniques"
+            self.LETTER = 'C_'
 
         # Add metadata and save the dataset.
-        pre_labeled_inputs.append((nb_queries, nb_comb, kernel_type, noise_std, output_std, lengthscale))  
-        pre_labeled_inputs.append(f"These pre-labeled inputs were made with these parameters:\n name: {name}\n nb_queries: {nb_queries}\n nb_comb: {nb_comb}\n kernel_type: {kernel_type}\n noise_std: {noise_std}\n output_std: {output_std}\n lengthscale: {lengthscale}")       
-        self.pkl_save(L=pre_labeled_inputs, name=name)
+        pre_labeled_inputs.append((nb_queries, nb_comb, kernel_type, noise_std, output_std, lengthscale, generation_method))  
+        pre_labeled_inputs.append("These pre-labeled inputs were made with the following method : " + generation_method + f" \nand these parameters:\n name: {self.LETTER+name}\n nb_queries: {nb_queries}\n nb_comb: {nb_comb}\n kernel_type: {kernel_type}\n noise_std: {noise_std}\n output_std: {output_std}\n lengthscale: {lengthscale}")       
+        
+        if combination:
+            if combination_without_rep:
+                self.pkl_save(L=pre_labeled_inputs, name=self.LETTER+name)
+            else:
+                self.pkl_save(L=pre_labeled_inputs, name=self.LETTER+name)
+        else:
+            self.pkl_save(L=pre_labeled_inputs, name=self.LETTER+name)
+        
 
     def format_labeled_inputs(self, name: str):
         """Format pre-labeled inputs for training and save them as tensors.
@@ -483,11 +523,11 @@ class DataGen():
             name (str): The name of the pre-labeled dataset.
         """
         # Load pre-labeled inputs.
-        pre_labeled_inputs = self.pkl_load(name)
+        pre_labeled_inputs = self.pkl_load(self.LETTER+name)
         print(pre_labeled_inputs[-1])
 
         # Extract metadata and initialize tensors for formatted data.
-        nb_queries, nb_comb, kernel_type, noise_std, output_std, lengthscale = pre_labeled_inputs[-2]
+        nb_queries, nb_comb, kernel_type, noise_std, output_std, lengthscale, generation_method= pre_labeled_inputs[-2]
         self.get_elem_maps(kernel_type, noise_std, output_std, lengthscale)
 
         train_input = torch.full((nb_comb, 4, self.map.shape[0], self.map.shape[1]), torch.nan)
@@ -511,6 +551,10 @@ class DataGen():
         data_to_save = {
             "train_input": train_input,
             "train_label": train_label,
-            "description": f"These labeled inputs have the original form.\nThese labeled inputs were made with these parameters:\n name: {name}\n nb_queries: {nb_queries}\n nb_comb: {nb_comb}\n kernel_type: {kernel_type}\n noise_std: {noise_std}\n output_std: {output_std}\n lengthscale: {lengthscale}"
+            "description": f"These labeled inputs have the original form.\nThese pre-labeled inputs were made with the following method : " + generation_method + f" \nand these parameters:\n name: {name}\n nb_queries: {nb_queries}\n nb_comb: {nb_comb}\n kernel_type: {kernel_type}\n noise_std: {noise_std}\n output_std: {output_std}\n lengthscale: {lengthscale}"
         }
-        torch.save(data_to_save, 'dataset/single_map/og_'+name+'.pth')
+
+        torch.save(data_to_save, 'dataset/single_map/og_'+self.LETTER+name+'.pth')
+
+
+        
