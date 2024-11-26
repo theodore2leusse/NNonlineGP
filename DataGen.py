@@ -88,6 +88,16 @@ class DataGen():
         generate_combinations(nb_queries, nb_comb=None):
             Generates random combinations of indices for queries.
 
+        new_generate_combinations(self, nb_queries: int, nb_comb: int = None):
+            Generate lots of differents (not necessarily unique) combinations of indices of a given size.
+            Because "itertools.combinations(range(self.space_size)" in generate_combinations method could 
+            require too much memory, we implement this new method.
+
+        generate_selections(self, nb_queries: int, nb_comb: int = None):
+            Generate lots of differents (not necessarily unique) selections of indices of a given size.
+            In contrast to generate_combinations and new_generate_combinations, which perform draws without discount 
+            (they don't allow repetitions), generate_selections allows repetitions. 
+
         generate_idx_inputs(nb_queries, nb_comb=None):
             Creates input indices for Gaussian Process training and querying.
 
@@ -306,6 +316,42 @@ class DataGen():
         selected_combinations = [list(comb) for comb in random.sample(all_combinations, nb_comb)]
         
         return selected_combinations
+
+    def new_generate_combinations(self, nb_queries: int, nb_comb: int = None) -> list:
+        """Generate lots of differents (not necessarily unique) combinations of indices of a given size.
+        Because "itertools.combinations(range(self.space_size)" in generate_combinations method could 
+        require too much memory, we implement this new method.
+
+        Args:
+            nb_queries (int): The number of elements in each combination.
+            nb_comb (int, optional): The number of unique combinations to generate. 
+                Defaults to the total number of possible combinations.
+
+        Returns:
+            list: A list of randomly selected combinations of indices.
+        """        
+
+        random_combinations = [list(random.sample(range(self.space_size), nb_queries)) for _ in range(nb_comb)]
+        
+        return random_combinations
+
+    def generate_selections(self, nb_queries: int, nb_comb: int = None) -> list:
+        """Generate lots of differents (not necessarily unique) selections of indices of a given size.
+        In contrast to generate_combinations and new_generate_combinations, which perform draws without discount 
+        (they don't allow repetitions), generate_selections allows repetitions. 
+
+        Args:
+            nb_queries (int): The number of elements in each combination.
+            nb_comb (int, optional): The number of unique combinations to generate. 
+                Defaults to the total number of possible combinations.
+
+        Returns:
+            list: A list of randomly selected combinations of indices.
+        """        
+
+        random_selections = [list(random.choices(range(self.space_size), k=nb_queries)) for _ in range(nb_comb)]
+        
+        return random_selections
     
     def generate_idx_inputs(self, nb_queries: int, nb_comb: int = None) -> list:
         """Generate indexed inputs with random selection for queries.
