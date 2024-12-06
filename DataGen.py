@@ -23,6 +23,7 @@ import itertools
 import random
 import pickle
 import GPy
+from typing import Union, List
 
 # import file
 from FixedGP import FixedGP
@@ -317,15 +318,14 @@ class DataGen():
         
         return selected_combinations
 
-    def new_generate_combinations(self, nb_queries: int, nb_comb: int = None) -> list:
+    def new_generate_combinations(self, nb_queries: int, nb_comb: int) -> list:
         """Generate lots of differents (not necessarily unique) combinations of indices of a given size.
         Because "itertools.combinations(range(self.space_size)" in generate_combinations method could 
         require too much memory, we implement this new method.
 
         Args:
             nb_queries (int): The number of elements in each combination.
-            nb_comb (int, optional): The number of unique combinations to generate. 
-                Defaults to the total number of possible combinations.
+            nb_comb (int): The number of combinations to generate. 
 
         Returns:
             list: A list of randomly selected combinations of indices.
@@ -335,30 +335,45 @@ class DataGen():
         
         return random_combinations
 
-    def generate_selections(self, nb_queries: int, nb_comb: int = None) -> list:
+    def generate_selections(self, nb_queries: Union[int, List[int]], nb_comb: Union[int, List[int]]) -> list:
         """Generate lots of differents (not necessarily unique) selections of indices of a given size.
         In contrast to generate_combinations and new_generate_combinations, which perform draws without discount 
         (they don't allow repetitions), generate_selections allows repetitions. 
 
         Args:
-            nb_queries (int): The number of elements in each combination.
-            nb_comb (int, optional): The number of unique combinations to generate. 
-                Defaults to the total number of possible combinations.
+            nb_queries (int or list(int)): The number of elements in each selections.
+            nb_comb (int or list(int)): The number of unique selections to generate. 
 
         Returns:
-            list: A list of randomly selected combinations of indices.
-        """        
+            list: A list of randomly selected selections of indices.
+        """     
+        if (type(nb_queries) != type(nb_comb)):
+            raise ValueError("nb_queries & nb_comb should have the same type.")
+        
+        if len(nb_queries)!=len(nb_comb):
+            raise ValueError("The lists nb_queries & nb_comb should have the same length.")
+        
 
-        random_selections = [list(random.choices(range(self.space_size), k=nb_queries)) for _ in range(nb_comb)]
+        
+        if type(nb_queries) == int:
+            random_selections = [list(random.choices(range(self.space_size), k=nb_queries)) for _ in range(nb_comb)]
+
+        else:
+            if len(nb_queries)!=len(nb_comb):
+                raise ValueError("The lists nb_queries & nb_comb should have the same length.")
+            
+            random_selections = []
+            for i in range(len(nb_comb)):
+                random_selections += [list(random.choices(range(self.space_size), k=nb_queries[i])) for _ in range(nb_comb[i])]
         
         return random_selections
     
-    def generate_idx_inputs(self, nb_queries: int, nb_comb: int = None, combination: bool = False, combination_without_rep: bool = False) -> list:
+    def generate_idx_inputs(self, nb_queries: Union[int, List[int]], nb_comb: Union[int, List[int]] = None, combination: bool = False, combination_without_rep: bool = False) -> list:
         """Generate indexed inputs with random selection for queries.
 
         Args:
-            nb_queries (int): The number of queries per combination.
-            nb_comb (int, optional): The number of combinations to generate. Defaults to None.
+            nb_queries (int or list(int)): The number of queries per combination.
+            nb_comb (int or list(int), optional): The number of combinations to generate. Defaults to None.
             combination (bool, optional): If False, we use sampling with replacement. If True, we use sampling without replacement. 
                                           Defaults to False.  
             combination_without_rep (bool, optional): If False, combinations could be repetitive in the dataset. 
@@ -374,18 +389,23 @@ class DataGen():
             else:
                 # Generate nb_comb combinations of size `nb_queries` from integers 0 to space_size-1
                 selected_selections = self.new_generate_combinations(nb_queries=nb_queries, nb_comb=nb_comb)
+
+            # Generate a random vector of size `nb_comb` with integers from 0 to `nb_queries-1`
+            random_idx = np.random.randint(0, nb_queries, size=nb_comb)
+
+            idx_inputs = []
+            for i in range(nb_comb):
+                q = selected_selections[i].pop(random_idx[i])
+                idx_inputs.append([selected_selections[i], q])
+
         else:
             # Generate nb_comb selections of size `nb_queries` from integers 0 to space_size-1
             selected_selections = self.generate_selections(nb_queries=nb_queries, nb_comb=nb_comb)
 
-
-        # Generate a random vector of size `nb_comb` with integers from 0 to `nb_queries-1`
-        random_idx = np.random.randint(0, nb_queries, size=nb_comb)
-
-        idx_inputs = []
-        for i in range(nb_comb):
-            q = selected_selections[i].pop(random_idx[i])
-            idx_inputs.append([selected_selections[i], q])
+            idx_inputs = []
+            for i in range(len(selected_selections)):
+                q = selected_selections[i].pop()
+                idx_inputs.append([selected_selections[i], q])
         
         return(idx_inputs)
     
@@ -435,7 +455,7 @@ class DataGen():
 
         return train_X_input, train_Y_input, query_x_idx, query_x, query_y, train_X_label, train_Y_label
 
-    def generate_pre_labeled_inputs(self, name: str, nb_queries: int, nb_comb: int = None, 
+    def generate_pre_labeled_inputs(self, name: str, nb_queries: Union[int, List[int]], nb_comb: Union[int, List[int]] = None, 
                                     kernel_type: str = 'rbf', noise_std=0.1, 
                                     output_std=1, lengthscale=0.05, 
                                     combination: bool = False, combination_without_rep: bool = False) -> None:
@@ -443,8 +463,8 @@ class DataGen():
 
         Args:
             name (str): The name used to save the dataset.
-            nb_queries (int): The number of queries per combination.
-            nb_comb (int, optional): The number of combinations to generate. Defaults to None.
+            nb_queries (int or list(int)): The number of queries per combination.
+            nb_comb (int or list(int), optional): The number of combinations to generate. Defaults to None.
             kernel_type (str): The kernel type for the Gaussian Process. Defaults to 'rbf'.
             noise_std (float): The noise standard deviation. Defaults to 0.1.
             output_std (float): The output standard deviation. Defaults to 1.
@@ -462,7 +482,7 @@ class DataGen():
                                               combination=combination, combination_without_rep=combination_without_rep)
         pre_labeled_inputs = []
 
-        for i in range(nb_comb):
+        for i in range(len(idx_inputs)):
             # Prepare inputs and labels for GP models.
             train_X_input, train_Y_input, query_x_idx, query_x, query_y, train_X_label, train_Y_label = self.get_inputs_for_GPs(
                                                         train_X_idx=idx_inputs[i][0],query_x_idx=idx_inputs[i][1])
@@ -530,10 +550,15 @@ class DataGen():
         nb_queries, nb_comb, kernel_type, noise_std, output_std, lengthscale, generation_method= pre_labeled_inputs[-2]
         self.get_elem_maps(kernel_type, noise_std, output_std, lengthscale)
 
-        train_input = torch.full((nb_comb, 4, self.map.shape[0], self.map.shape[1]), torch.nan)
-        train_label = torch.full((nb_comb, 2, self.map.shape[0], self.map.shape[1]), torch.nan)
+        if type(nb_comb) == int:
+            nb_comb_tot = nb_comb
+        else:
+            nb_comb_tot = sum(nb_comb)
 
-        for i in range(nb_comb):
+        train_input = torch.full((nb_comb_tot, 4, self.map.shape[0], self.map.shape[1]), torch.nan)
+        train_label = torch.full((nb_comb_tot, 2, self.map.shape[0], self.map.shape[1]), torch.nan)
+
+        for i in range(nb_comb_tot):
             # Convert maps to images for training inputs and labels.
             img_mean_input = self.map_to_img(pre_labeled_inputs[i][0])
             img_std_input = self.map_to_img(pre_labeled_inputs[i][1])
