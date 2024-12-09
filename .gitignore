@@ -1,5 +1,4 @@
-dataset/single_map/*
-dataset/pkl_files/*
+dataset/*
 draft.ipynb
 *.png
 
