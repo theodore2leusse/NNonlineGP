@@ -15,6 +15,10 @@ class FixedGP:
     """
     A class representing a Gaussian Process with fixed hyperparameters.
 
+    Methods:
+        compute_kernel: Computes the covariance matrix and the kernel vector matrix based on the selected kernel type.
+        predict: Predicts the mean and standard deviation of the GP at the given input space.
+
     Attributes:
         input_space (np.ndarray): The input space for the GP. 
         train_X (np.ndarray): The training input data.
@@ -29,6 +33,9 @@ class FixedGP:
         kernel (GPy.kern): The kernel object used in the GP.
         kernel_mat (np.ndarray): The covariance matrix of the training inputs.
         kernel_vect_mat (np.ndarray): The covariance matrix between input space and training inputs.
+        K_inv (np.ndarray): The inverse of the kernel matrix.
+        mean (np.ndarray): The predicted mean values at the input space.
+        std (np.ndarray): The predicted standard deviations at the input space.
 
     Methods:
         set_kernel: Sets the kernel based on the specified type and hyperparameters.
@@ -125,8 +132,8 @@ class FixedGP:
         kernel_diag = np.einsum('ij,ji->i', self.kernel_vect_mat, self.K_inv @ self.kernel_vect_mat.T)
         if max(kernel_diag) > self.output_std**2:
             print('we have a problem, we have a negative variance')
-        self.std = np.sqrt(self.output_std**2 - kernel_diag)
+        self.std = np.sqrt(self.output_std**2 - kernel_diag + self.noise_std**2)
 
-        return self.mean, self.std
+        return self.mean.copy(), self.std.copy()
 
 

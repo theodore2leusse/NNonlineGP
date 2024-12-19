@@ -26,6 +26,12 @@ class QueriesInfo:
             coord.append(idx[i]/self.space_shape[i])
         return tuple(coord)
     
+    def coord2idx(self, coord):
+        idx = []
+        for i in range(len(coord)):
+            idx.append(round(coord[i]*self.space_shape[i]))
+        return tuple(idx)
+    
     def get_mean_queries(self):
         mean_queries_list = []
         for idx in np.ndindex(self.space_shape):
