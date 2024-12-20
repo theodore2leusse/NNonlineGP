@@ -26,7 +26,8 @@ import GPy
 from typing import Union, List
 
 # import file
-from FixedGP import FixedGP
+# from FixedGP import FixedGP
+from GPcustom.models import FixedGP
 
 def standardize_vector(vec: np.ndarray) -> np.ndarray:
     """standardize a vector
@@ -349,9 +350,6 @@ class DataGen():
         """     
         if (type(nb_queries) != type(nb_comb)):
             raise ValueError("nb_queries & nb_comb should have the same type.")
-        
-        if len(nb_queries)!=len(nb_comb):
-            raise ValueError("The lists nb_queries & nb_comb should have the same length.")
         
 
         
