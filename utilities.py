@@ -77,8 +77,8 @@ def labeled_inputs_plot(train_input, train_label, comb_idx: int = 0, values: boo
             train_input[comb_idx, 1], train_input[comb_idx, 2], train_label[comb_idx, 1]]
     
     # Titles for the plots
-    titles = ["mean map (nb_query=4)", "elem_mean(query_x) * query_y", "mean map (nb_query=5)",
-              "std map (nb_query=4)", "elem_std(query_x)", "std map (nb_query=5)"]
+    titles = ["mean map (before)", "elem_mean(query_x) * query_y", "mean map (after)",
+              "std map (before)", "elem_std(query_x)", "std map (after)"]
     
     # Normalize the color scale for the std maps and other maps
     std_maps = [train_input[comb_idx, 1], train_input[comb_idx, 2], train_label[comb_idx, 1]]
