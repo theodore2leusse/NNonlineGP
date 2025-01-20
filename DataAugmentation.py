@@ -24,9 +24,6 @@ import random
 import pickle
 import GPy
 
-# import file
-from FixedGP import FixedGP
-
 
 
 def augment_with_vertical_flip(train_X, train_Y) -> tuple[torch.Tensor, torch.Tensor]:

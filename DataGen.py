@@ -23,10 +23,12 @@ import itertools
 import random
 import pickle
 import GPy
+import gpytorch
 from typing import Union, List
 
 # import file
-from FixedGP import FixedGP
+# from FixedGP import FixedGP
+from GPcustom.models import FixedGP, GPytorchFixed
 
 def standardize_vector(vec: np.ndarray) -> np.ndarray:
     """standardize a vector
@@ -206,65 +208,81 @@ class DataGen():
         # Normalize the coordinates to the range [0, 1]
         self.X_test_normed = ((self.ch2xy - np.min(self.ch2xy, axis=0)) /
                                         (np.max(self.ch2xy, axis=0) - np.min(self.ch2xy, axis=0)))
+        self.X_test_normed_tensor = torch.from_numpy(self.X_test_normed).double()
     
-    def set_kernel(self, kernel_type, noise_std, output_std, lengthscale) -> None:
-        """
-        Sets the kernel for Gaussian Process modeling.
+    # def set_kernel(self, kernel_type, noise_std, output_std, lengthscale) -> None:
+    #     """
+    #     Sets the kernel for Gaussian Process modeling.
 
-        Args:
-            kernel_type (str): The type of kernel ('rbf', 'Mat32', 'Mat52').
-            noise_std (float): Noise standard deviation.
-            output_std (float): Output standard deviation.
-            lengthscale (float or list): Lengthscale(s) for the kernel.
+    #     Args:
+    #         kernel_type (str): The type of kernel ('rbf', 'Mat32', 'Mat52').
+    #         noise_std (float): Noise standard deviation.
+    #         output_std (float): Output standard deviation.
+    #         lengthscale (float or list): Lengthscale(s) for the kernel.
 
-        Raises:
-            ValueError: If the kernel_type or lengthscale is not well defined.
-        """
-        if isinstance(lengthscale, float) or (isinstance(lengthscale, list) and len(lengthscale) == 1):     
-            if kernel_type == 'rbf':
-                self.kernel = GPy.kern.RBF(input_dim=self.space_dim, variance=output_std**2, lengthscale=lengthscale)
-            elif kernel_type == 'Mat32':
-                self.kernel = GPy.kern.Matern32(input_dim=self.space_dim, variance=output_std**2, lengthscale=lengthscale)
-            elif kernel_type == 'Mat52':
-                self.kernel = GPy.kern.Matern52(input_dim=self.space_dim, variance=output_std**2, lengthscale=lengthscale)
-            else:
-                raise ValueError("The attribute kernel_type is not well defined")
-        elif len(lengthscale) == self.space_dim:
-            if kernel_type == 'rbf':
-                self.kernel = GPy.kern.RBF(input_dim=self.space_dim, variance=output_std**2, lengthscale=lengthscale, ARD=True)
-            elif kernel_type == 'Mat32':
-                self.kernel = GPy.kern.Matern32(input_dim=self.space_dim, variance=output_std**2, lengthscale=lengthscale, ARD=True)
-            elif kernel_type == 'Mat52':
-                self.kernel = GPy.kern.Matern52(input_dim=self.space_dim, variance=output_std**2, lengthscale=lengthscale, ARD=True)
-            else:
-                raise ValueError("The attribute kernel_type is not well defined")
-        else:
-            raise ValueError("The attribute lengthscale is not well defined")
+    #     Raises:
+    #         ValueError: If the kernel_type or lengthscale is not well defined.
+    #     """
+    #     if isinstance(lengthscale, float) or (isinstance(lengthscale, list) and len(lengthscale) == 1):     
+    #         if kernel_type == 'rbf':
+    #             self.kernel = GPy.kern.RBF(input_dim=self.space_dim, variance=output_std**2, lengthscale=lengthscale)
+    #         elif kernel_type == 'Mat32':
+    #             self.kernel = GPy.kern.Matern32(input_dim=self.space_dim, variance=output_std**2, lengthscale=lengthscale)
+    #         elif kernel_type == 'Mat52':
+    #             self.kernel = GPy.kern.Matern52(input_dim=self.space_dim, variance=output_std**2, lengthscale=lengthscale)
+    #         else:
+    #             raise ValueError("The attribute kernel_type is not well defined")
+    #     elif len(lengthscale) == self.space_dim:
+    #         if kernel_type == 'rbf':
+    #             self.kernel = GPy.kern.RBF(input_dim=self.space_dim, variance=output_std**2, lengthscale=lengthscale, ARD=True)
+    #         elif kernel_type == 'Mat32':
+    #             self.kernel = GPy.kern.Matern32(input_dim=self.space_dim, variance=output_std**2, lengthscale=lengthscale, ARD=True)
+    #         elif kernel_type == 'Mat52':
+    #             self.kernel = GPy.kern.Matern52(input_dim=self.space_dim, variance=output_std**2, lengthscale=lengthscale, ARD=True)
+    #         else:
+    #             raise ValueError("The attribute kernel_type is not well defined")
+    #     else:
+    #         raise ValueError("The attribute lengthscale is not well defined")
         
-    def get_elem_maps(self, kernel_type, noise_std, output_std, lengthscale) -> None:
+    def get_elem_maps(self, kernel_type, noise, outputscale, lengthscale, using_GPytorch=False) -> None:
         """
         Generates element maps for all elements in the map.
         For each 'pixel', we will generate mean and std map for a unique query : 
                     x="this pixel"      and     y=1.
 
         Args:
-            kernel_type (str): The type of kernel ('rbf', 'Mat32', 'Mat52').
-            noise_std (float): Noise standard deviation.
-            output_std (float): Output standard deviation.
+            kernel_type (str): The type of kernel ('RBF', 'Matern32', 'Matern52').
+            noise (float): Noise variance.
+            outputscale (float): Output variance.
             lengthscale (float or list): Lengthscale(s) for the kernel.
+            using_GPytorch (bool): If True, we use GPytorchFixed. If False, we use FixedGP.
         """
         self.maps_elem_mean = np.full((self.space_size, self.map.shape[0], self.map.shape[1]), np.nan)
         self.maps_elem_std = np.full((self.space_size, self.map.shape[0], self.map.shape[1]), np.nan)
-        self.set_kernel(kernel_type, noise_std, output_std, lengthscale)
-        for i in range(self.space_size):
-            elem_gp = FixedGP(input_space=self.X_test_normed, 
-                              train_X=self.X_test_normed[i:i+1], train_Y=np.array([[1.]]), 
-                              kernel_type=kernel_type, noise_std=noise_std, 
-                              output_std=output_std, lengthscale=lengthscale)
-            elem_mean, elem_std = elem_gp.predict()
-            for j in range(self.space_size):
-                self.maps_elem_mean[i, int(self.ch2xy[j,0]-1), int(self.ch2xy[j,1]-1)] = elem_mean[j]
-                self.maps_elem_std[i, int(self.ch2xy[j,0]-1), int(self.ch2xy[j,1]-1)] = elem_std[j]
+
+        if using_GPytorch:
+            for i in range(self.space_size):
+                likelihood = gpytorch.likelihoods.GaussianLikelihood()
+                elem_gp = GPytorchFixed(
+                                train_x=self.X_test_normed_tensor[i:i+1], train_y=torch.tensor([1.]), 
+                                likelihood=likelihood, kernel_type=kernel_type, noise=noise, 
+                                outputscale=outputscale, lengthscale=lengthscale)
+                elem_gp.double()
+                elem_mean, elem_std = elem_gp.predict(self.X_test_normed_tensor)
+                for j in range(self.space_size):
+                    self.maps_elem_mean[i, int(self.ch2xy[j,0]-1), int(self.ch2xy[j,1]-1)] = elem_mean[j].detach().item()
+                    self.maps_elem_std[i, int(self.ch2xy[j,0]-1), int(self.ch2xy[j,1]-1)] = elem_std[j].detach().item()
+        else:
+            #self.set_kernel(kernel_type, np.sqrt(noise), np.sqrt(outputscale), lengthscale)
+            for i in range(self.space_size):
+                elem_gp = FixedGP(input_space=self.X_test_normed, 
+                                train_X=self.X_test_normed[i:i+1], train_Y=np.array([[1.]]), 
+                                kernel_type=kernel_type, noise_std=np.sqrt(noise), 
+                                output_std=np.sqrt(outputscale), lengthscale=lengthscale)
+                elem_mean, elem_std = elem_gp.predict()
+                for j in range(self.space_size):
+                    self.maps_elem_mean[i, int(self.ch2xy[j,0]-1), int(self.ch2xy[j,1]-1)] = elem_mean[j]
+                    self.maps_elem_std[i, int(self.ch2xy[j,0]-1), int(self.ch2xy[j,1]-1)] = elem_std[j]
 
     def pkl_save(self, L: list, name: str):
         """Save a list to a pickle file.
@@ -349,9 +367,6 @@ class DataGen():
         """     
         if (type(nb_queries) != type(nb_comb)):
             raise ValueError("nb_queries & nb_comb should have the same type.")
-        
-        if len(nb_queries)!=len(nb_comb):
-            raise ValueError("The lists nb_queries & nb_comb should have the same length.")
         
 
         
@@ -456,23 +471,25 @@ class DataGen():
         return train_X_input, train_Y_input, query_x_idx, query_x, query_y, train_X_label, train_Y_label
 
     def generate_pre_labeled_inputs(self, name: str, nb_queries: Union[int, List[int]], nb_comb: Union[int, List[int]] = None, 
-                                    kernel_type: str = 'rbf', noise_std=0.1, 
-                                    output_std=1, lengthscale=0.05, 
-                                    combination: bool = False, combination_without_rep: bool = False) -> None:
+                                    kernel_type: str = 'RBF', noise=0.1, 
+                                    outputscale=1, lengthscale=0.05, 
+                                    combination: bool = False, combination_without_rep: bool = False,
+                                    using_GPytorch: bool = False) -> None:
         """Generate pre-labeled data for Gaussian Processes and save it.
 
         Args:
             name (str): The name used to save the dataset.
             nb_queries (int or list(int)): The number of queries per combination.
             nb_comb (int or list(int), optional): The number of combinations to generate. Defaults to None.
-            kernel_type (str): The kernel type for the Gaussian Process. Defaults to 'rbf'.
-            noise_std (float): The noise standard deviation. Defaults to 0.1.
-            output_std (float): The output standard deviation. Defaults to 1.
+            kernel_type (str): The kernel type for the Gaussian Process. Defaults to 'RBF'.
+            noise (float): The noise variance. Defaults to 0.1.
+            outputscale (float): The output variance. Defaults to 1.
             lengthscale (float): The kernel lengthscale. Defaults to 0.05.
             combination (bool, optional): If False, we use sampling with replacement. If True, we use sampling without replacement. 
                                           Defaults to False.  
             combination_without_rep (bool, optional): If False, combinations could be repetitive in the dataset. 
                                                       If True, each combination is unique. Defaults to False.
+            using_GPytorch (bool, optional): If True, we use GPytorchFixed. If False, we use FixedGP. Defaults to False.
         """
 
         if (not combination) and (combination_without_rep):
@@ -482,35 +499,68 @@ class DataGen():
                                               combination=combination, combination_without_rep=combination_without_rep)
         pre_labeled_inputs = []
 
-        for i in range(len(idx_inputs)):
-            # Prepare inputs and labels for GP models.
-            train_X_input, train_Y_input, query_x_idx, query_x, query_y, train_X_label, train_Y_label = self.get_inputs_for_GPs(
-                                                        train_X_idx=idx_inputs[i][0],query_x_idx=idx_inputs[i][1])
-            
-            # Initialize GP models for inputs and labels.
-            gp_input = FixedGP(input_space=self.X_test_normed, 
-                               train_X=train_X_input, train_Y=train_Y_input,
-                               kernel_type=kernel_type, noise_std=noise_std, 
-                               output_std=output_std, lengthscale=lengthscale)
-            gp_label = FixedGP(input_space=self.X_test_normed, 
-                               train_X=train_X_label, train_Y=train_Y_label, 
-                               kernel_type=kernel_type, noise_std=noise_std, 
-                               output_std=output_std, lengthscale=lengthscale)
-            
-            # Generate predictions for inputs and labels.
-            mean_input, std_input = gp_input.predict()
-            mean_label, std_label = gp_label.predict()
+        if using_GPytorch:
+            for i in range(len(idx_inputs)):
+                # Prepare inputs and labels for GP models.
+                train_X_input, train_Y_input, query_x_idx, query_x, query_y, train_X_label, train_Y_label = self.get_inputs_for_GPs(
+                                                            train_X_idx=idx_inputs[i][0],query_x_idx=idx_inputs[i][1])
+                
+                # Initialize GP models for inputs and labels.
+                likelihood_input = gpytorch.likelihoods.GaussianLikelihood()
+                gp_input = GPytorchFixed( 
+                                train_x=torch.from_numpy(train_X_input), train_y=torch.from_numpy(train_Y_input[:,0]), 
+                                likelihood=likelihood_input, kernel_type=kernel_type, noise=noise, 
+                                outputscale=outputscale, lengthscale=lengthscale)
+                likelihood_label = gpytorch.likelihoods.GaussianLikelihood()
+                gp_label = GPytorchFixed( 
+                                train_x=torch.from_numpy(train_X_label), train_y=torch.from_numpy(train_Y_label[:,0]), 
+                                likelihood=likelihood_label, kernel_type=kernel_type, noise=noise, 
+                                outputscale=outputscale, lengthscale=lengthscale)
+                
+                # Generate predictions for inputs and labels.
+                mean_input, std_input = gp_input.predict(self.X_test_normed_tensor)
+                mean_label, std_label = gp_label.predict(self.X_test_normed_tensor)
 
-            # Transform vector predictions to maps.
-            map_mean_input = self.vec_to_map(mean_input)
-            map_std_input = self.vec_to_map(std_input)
-            map_mean_label = self.vec_to_map(mean_label)
-            map_std_label = self.vec_to_map(std_label)
+                # Transform vector predictions to maps.
+                map_mean_input = self.vec_to_map(mean_input.detach().numpy())
+                map_std_input = self.vec_to_map(std_input.detach().numpy())
+                map_mean_label = self.vec_to_map(mean_label.detach().numpy())
+                map_std_label = self.vec_to_map(std_label.detach().numpy())
 
-            # Save processed data.
-            pre_labeled_inputs.append([map_mean_input, map_std_input, 
-                                   query_x_idx, query_x, query_y, 
-                                   map_mean_label, map_std_label])
+                # Save processed data.
+                pre_labeled_inputs.append([map_mean_input, map_std_input, 
+                                    query_x_idx, query_x, query_y, 
+                                    map_mean_label, map_std_label])
+        else:
+            for i in range(len(idx_inputs)):
+                # Prepare inputs and labels for GP models.
+                train_X_input, train_Y_input, query_x_idx, query_x, query_y, train_X_label, train_Y_label = self.get_inputs_for_GPs(
+                                                            train_X_idx=idx_inputs[i][0],query_x_idx=idx_inputs[i][1])
+                
+                # Initialize GP models for inputs and labels.
+                gp_input = FixedGP(input_space=self.X_test_normed, 
+                                train_X=train_X_input, train_Y=train_Y_input,
+                                kernel_type=kernel_type, noise_std=np.sqrt(noise), 
+                                output_std=np.sqrt(outputscale), lengthscale=lengthscale)
+                gp_label = FixedGP(input_space=self.X_test_normed, 
+                                train_X=train_X_label, train_Y=train_Y_label, 
+                                kernel_type=kernel_type, noise_std=np.sqrt(noise), 
+                                output_std=np.sqrt(outputscale), lengthscale=lengthscale)
+                
+                # Generate predictions for inputs and labels.
+                mean_input, std_input = gp_input.predict()
+                mean_label, std_label = gp_label.predict()
+
+                # Transform vector predictions to maps.
+                map_mean_input = self.vec_to_map(mean_input)
+                map_std_input = self.vec_to_map(std_input)
+                map_mean_label = self.vec_to_map(mean_label)
+                map_std_label = self.vec_to_map(std_label)
+
+                # Save processed data.
+                pre_labeled_inputs.append([map_mean_input, map_std_input, 
+                                    query_x_idx, query_x, query_y, 
+                                    map_mean_label, map_std_label])
 
         if combination:
             if combination_without_rep:
@@ -521,11 +571,14 @@ class DataGen():
                 self.LETTER = 'B_'
         else:
             generation_method = "we have used sampling with replacement to choose the queries. And all the samples are NOT uniques"
-            self.LETTER = 'C_'
+            if using_GPytorch:
+                self.LETTER = 'C4_'
+            else:
+                self.LETTER = 'C3_'
 
         # Add metadata and save the dataset.
-        pre_labeled_inputs.append((nb_queries, nb_comb, kernel_type, noise_std, output_std, lengthscale, generation_method))  
-        pre_labeled_inputs.append("These pre-labeled inputs were made with the following method : " + generation_method + f" \nand these parameters:\n name: {self.LETTER+name}\n nb_queries: {nb_queries}\n nb_comb: {nb_comb}\n kernel_type: {kernel_type}\n noise_std: {noise_std}\n output_std: {output_std}\n lengthscale: {lengthscale}")       
+        pre_labeled_inputs.append((nb_queries, nb_comb, kernel_type, noise, outputscale, lengthscale, using_GPytorch, generation_method))  
+        pre_labeled_inputs.append("These pre-labeled inputs were made with the following method : " + generation_method + f" \nand these parameters:\n name: {self.LETTER+name}\n nb_queries: {nb_queries}\n nb_comb: {nb_comb}\n kernel_type: {kernel_type}\n noise: {noise}\n outputscale: {outputscale}\n lengthscale: {lengthscale}")       
         
         if combination:
             if combination_without_rep:
@@ -547,8 +600,8 @@ class DataGen():
         print(pre_labeled_inputs[-1])
 
         # Extract metadata and initialize tensors for formatted data.
-        nb_queries, nb_comb, kernel_type, noise_std, output_std, lengthscale, generation_method= pre_labeled_inputs[-2]
-        self.get_elem_maps(kernel_type, noise_std, output_std, lengthscale)
+        nb_queries, nb_comb, kernel_type, noise_std, output_std, lengthscale, using_GPytorch, generation_method = pre_labeled_inputs[-2]
+        self.get_elem_maps(kernel_type, noise_std, output_std, lengthscale, using_GPytorch)
 
         if type(nb_comb) == int:
             nb_comb_tot = nb_comb

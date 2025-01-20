@@ -19,7 +19,7 @@ def standardize_vector(vec: np.ndarray) -> np.ndarray:
     std = np.std(vec)
     return (vec - mean) / std if std != 0 else vec/vec # avoid divide with zero
 
-def map_plot(my_map, title: str = 'map'):
+def map_plot(my_map, title: str = 'map', figsize=(6, 6)):
     """
     Plots a 2D map with color scale and values displayed at each cell.
 
@@ -39,7 +39,7 @@ def map_plot(my_map, title: str = 'map'):
         map_plot(np.array([[1, 2], [3, 4]]), 'Sample Map')
     """
     # Set up the figure with a fixed size
-    plt.figure(figsize=(6, 6))
+    plt.figure(figsize=figsize)
     
     # Display the map using a color map and scale it according to the minimum and maximum values
     plt.imshow(my_map, cmap='coolwarm', vmin=np.nanmin(my_map), vmax=np.nanmax(my_map))
@@ -58,7 +58,7 @@ def map_plot(my_map, title: str = 'map'):
     # Show the plot
     plt.show()
 
-def labeled_inputs_plot(train_input, train_label, comb_idx: int = 0, values: bool = False):
+def labeled_inputs_plot(train_input, train_label, comb_idx: int = 0, values: bool = False, figsize=(10, 8)):
     """
     Plots labeled inputs and their corresponding labels with an option to display values.
     
@@ -70,15 +70,15 @@ def labeled_inputs_plot(train_input, train_label, comb_idx: int = 0, values: boo
     """
     
     # Define the figure and axes for the subplots
-    fig, axes = plt.subplots(2, 3, figsize=(10, 8)) 
+    fig, axes = plt.subplots(2, 3, figsize=figsize) 
     
     # Define the maps for the plots
     maps = [train_input[comb_idx, 0], train_input[comb_idx, 3], train_label[comb_idx, 0], 
             train_input[comb_idx, 1], train_input[comb_idx, 2], train_label[comb_idx, 1]]
     
     # Titles for the plots
-    titles = ["mean map (nb_query=4)", "elem_mean(query_x) * query_y", "mean map (nb_query=5)",
-              "std map (nb_query=4)", "elem_std(query_x)", "std map (nb_query=5)"]
+    titles = ["mean map (before)", "elem_mean(query_x) * query_y", "mean map (after)",
+              "std map (before)", "elem_std(query_x)", "std map (after)"]
     
     # Normalize the color scale for the std maps and other maps
     std_maps = [train_input[comb_idx, 1], train_input[comb_idx, 2], train_label[comb_idx, 1]]
@@ -191,3 +191,39 @@ def plot_combinations(train_input, train_label, output=None, comb_idx_range=(0, 
     
     # Create the interactive widget
     interact(update_plot, comb_idx=widgets.IntSlider(value=comb_idx_range[0], min=comb_idx_range[0], max=comb_idx_range[1], step=1, description="Comb Index"))
+    
+def fill_nans_with_mean(map_emg):
+    """
+    Remplace toutes les valeurs NaN dans l'array par la moyenne des valeurs voisines valides.
+    
+    Args:
+        map_emg (np.ndarray): Array 2D contenant des valeurs et éventuellement des NaN.
+    
+    Returns:
+        np.ndarray: Array où les NaN ont été remplacés par la moyenne de leurs voisins valides.
+    """
+    # Obtenir les dimensions de la carte
+    rows, cols = map_emg.shape
+    
+    # Copier l'array pour éviter de modifier l'original
+    filled_map = map_emg.copy()
+    
+    # Parcourir toutes les positions de l'array
+    for x in range(rows):
+        for y in range(cols):
+            if np.isnan(filled_map[x, y]):  # Vérifier si la cellule est NaN
+                # Collecter les valeurs voisines
+                neighbors = []
+                for i in [-1, 0, 1]:
+                    for j in [-1, 0, 1]:
+                        # S'assurer que les indices sont valides (dans les limites de l'array)
+                        if 0 <= x + i < rows and 0 <= y + j < cols and not (i == 0 and j == 0):
+                            neighbor_value = filled_map[x + i, y + j]
+                            if not np.isnan(neighbor_value):
+                                neighbors.append(neighbor_value)
+                
+                # Si des voisins valides existent, calculer la moyenne et remplacer le NaN
+                if neighbors:
+                    filled_map[x, y] = np.mean(neighbors)
+    
+    return filled_map
