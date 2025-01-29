@@ -112,7 +112,7 @@ def labeled_inputs_plot(train_input, train_label, comb_idx: int = 0, values: boo
     plt.tight_layout()
     plt.show()
 
-def compare_output_label(train_input, train_label, output, comb_idx: int = 0, values: bool = False):
+def compare_output_label(train_input, train_label, output, comb_idx: int = 0, values: bool = False, figsize = (15, 8)):
     """
     Plots labeled inputs and their corresponding labels with an option to display values.
     
@@ -124,15 +124,15 @@ def compare_output_label(train_input, train_label, output, comb_idx: int = 0, va
     """
     
     # Define the figure and axes for the subplots
-    fig, axes = plt.subplots(2, 5, figsize=(15, 8)) 
+    fig, axes = plt.subplots(2, 5, figsize=figsize) 
     
     # Define the maps for the plots
     maps = [train_input[comb_idx, 0], train_input[comb_idx, 3], train_label[comb_idx, 0], output[comb_idx, 0], output[comb_idx, 0]-train_label[comb_idx, 0],
             train_input[comb_idx, 1], train_input[comb_idx, 2], train_label[comb_idx, 1], output[comb_idx, 1], output[comb_idx, 1]-train_label[comb_idx, 1]]
     
     # Titles for the plots
-    titles = ["mean map (nb_query=4)", "elem_mean(query_x) * query_y", "mean map (nb_query=5)", "mean map output", "error mean", 
-              "std map (nb_query=4)", "elem_std(query_x)", "std map (nb_query=5)", "std map output", "error std"]
+    titles = ["mean map (nb_query=N)", "elem_mean(query_x) * query_y", "mean map (nb_query=N+1)", "mean map output", "error mean", 
+              "std map (nb_query=N)", "elem_std(query_x)", "std map (nb_query=N+1)", "std map output", "error std"]
     
     # Normalize the color scale for the std maps and other maps
     std_maps = [train_input[comb_idx, 1], train_input[comb_idx, 2], train_label[comb_idx, 1], output[comb_idx, 1]]
