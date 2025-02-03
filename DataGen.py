@@ -424,7 +424,7 @@ class DataGen():
         
         return(idx_inputs)
     
-    def get_inputs_for_GPs(self, train_X_idx: list, query_x_idx: int) -> tuple:
+    def get_inputs_for_GPs(self, train_X_idx: list, query_x_idx: int, method: str = 'same_std') -> tuple:
         """
         Prepare inputs and labels for Gaussian Process training.
 
@@ -446,7 +446,7 @@ class DataGen():
         from Y_n to Y_{n+1}, since Y_n and Y_{n+1} are standardized differently. 
         In other words, train_label != train_input.append(query_y).
 
-        Therefore, we choose option 3, which certainly has the disadvantage that the label at iteration n 
+        Therefore, we choose option 3 for the method 'same_std', which certainly has the disadvantage that the label at iteration n 
         will be different from the input at iteration n+1 (as they are standardized differently), 
         but it has the advantage that train_label = train_input.append(query_y), which we consider very 
         beneficial for training our model.
@@ -454,27 +454,46 @@ class DataGen():
         Args:
             train_X_idx (list): List of indices for training input.
             query_x_idx (int): Index of the query point.
+            method (str, optional): choose one of two methods presented before (1 & 3). Default is 'same_std' (method 3)
 
         Returns:
             tuple: Contains training inputs, training labels, query data, and full labeled data.
         """
-        train_X_label = self.X_test_normed[train_X_idx + [query_x_idx]]
-        train_Y_label = self.map_idx[train_X_idx + [query_x_idx]].reshape(-1,1)
-        train_Y_label = standardize_vector(train_Y_label)
+        if method == 'same_std':
 
-        train_X_input = self.X_test_normed[train_X_idx]
-        train_Y_input = train_Y_label[:-1]
+            train_X_label = self.X_test_normed[train_X_idx + [query_x_idx]]
+            train_Y_label = self.map_idx[train_X_idx + [query_x_idx]].reshape(-1,1)
+            train_Y_label = standardize_vector(train_Y_label)
 
-        query_x = self.X_test_normed[query_x_idx]
-        query_y = train_Y_label[-1,0]
+            train_X_input = self.X_test_normed[train_X_idx]
+            train_Y_input = train_Y_label[:-1]
 
-        return train_X_input, train_Y_input, query_x_idx, query_x, query_y, train_X_label, train_Y_label
+            query_x = self.X_test_normed[query_x_idx]
+            query_y = train_Y_label[-1,0]
+
+            return train_X_input, train_Y_input, query_x_idx, query_x, query_y, train_X_label, train_Y_label
+        
+        elif method == 'independent_std':
+
+            train_X_label = self.X_test_normed[train_X_idx + [query_x_idx]]
+            train_Y_label = self.map_idx[train_X_idx + [query_x_idx]].reshape(-1,1)
+            train_Y_label = standardize_vector(train_Y_label)
+
+            train_X_input = self.X_test_normed[train_X_idx]
+            train_Y_input = self.map_idx[train_X_idx].reshape(-1,1)
+            train_Y_input = standardize_vector(train_Y_input)
+
+            query_x = self.X_test_normed[query_x_idx]
+            query_y = train_Y_label[-1,0]
+
+            return train_X_input, train_Y_input, query_x_idx, query_x, query_y, train_X_label, train_Y_label
+
 
     def generate_pre_labeled_inputs(self, name: str, nb_queries: Union[int, List[int]], nb_comb: Union[int, List[int]] = None, 
                                     kernel_type: str = 'RBF', noise=0.1, 
                                     outputscale=1, lengthscale=0.05, 
                                     combination: bool = False, combination_without_rep: bool = False,
-                                    using_GPytorch: bool = False) -> None:
+                                    using_GPytorch: bool = False, method_std: str = 'same_std') -> None:
         """Generate pre-labeled data for Gaussian Processes and save it.
 
         Args:
@@ -490,6 +509,7 @@ class DataGen():
             combination_without_rep (bool, optional): If False, combinations could be repetitive in the dataset. 
                                                       If True, each combination is unique. Defaults to False.
             using_GPytorch (bool, optional): If True, we use GPytorchFixed. If False, we use FixedGP. Defaults to False.
+            method_std (str, optional): choose one of two methods presented before in get_inputs_for_GPs (1 & 3). Default is 'same_std' (method 3)
         """
 
         if (not combination) and (combination_without_rep):
@@ -503,7 +523,7 @@ class DataGen():
             for i in range(len(idx_inputs)):
                 # Prepare inputs and labels for GP models.
                 train_X_input, train_Y_input, query_x_idx, query_x, query_y, train_X_label, train_Y_label = self.get_inputs_for_GPs(
-                                                            train_X_idx=idx_inputs[i][0],query_x_idx=idx_inputs[i][1])
+                                                            train_X_idx=idx_inputs[i][0],query_x_idx=idx_inputs[i][1], method=method_std)
                 
                 # Initialize GP models for inputs and labels.
                 likelihood_input = gpytorch.likelihoods.GaussianLikelihood()
@@ -535,7 +555,7 @@ class DataGen():
             for i in range(len(idx_inputs)):
                 # Prepare inputs and labels for GP models.
                 train_X_input, train_Y_input, query_x_idx, query_x, query_y, train_X_label, train_Y_label = self.get_inputs_for_GPs(
-                                                            train_X_idx=idx_inputs[i][0],query_x_idx=idx_inputs[i][1])
+                                                            train_X_idx=idx_inputs[i][0],query_x_idx=idx_inputs[i][1], method=method_std)
                 
                 # Initialize GP models for inputs and labels.
                 gp_input = FixedGP(input_space=self.X_test_normed, 
@@ -561,6 +581,7 @@ class DataGen():
                 pre_labeled_inputs.append([map_mean_input, map_std_input, 
                                     query_x_idx, query_x, query_y, 
                                     map_mean_label, map_std_label])
+       
 
         if combination:
             if combination_without_rep:
@@ -575,6 +596,9 @@ class DataGen():
                 self.LETTER = 'C4_'
             else:
                 self.LETTER = 'C3_'
+
+        if method_std == 'independent_std':
+            self.LETTER = 'i'+self.LETTER
 
         # Add metadata and save the dataset.
         pre_labeled_inputs.append((nb_queries, nb_comb, kernel_type, noise, outputscale, lengthscale, using_GPytorch, generation_method))  
