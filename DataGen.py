@@ -1,5 +1,7 @@
-# theodore 
-# sciNeurotech
+# sciNeurotech Lab 
+# Theodore
+
+# This file contains the DataGen class, which is used to generate, process, and manipulate data for Gaussian Process optimization and modeling tasks.
 
 # import lib
 import torch

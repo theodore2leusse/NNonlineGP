@@ -1,5 +1,7 @@
-# theodore 
-# sciNeurotech
+# sciNeurotech Lab 
+# Theodore
+
+# This file includes functions for augmenting the dataset to improve model robustness.
 
 # import lib
 import torch
