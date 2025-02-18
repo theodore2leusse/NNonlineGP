@@ -9,7 +9,8 @@ dataset/test_rat/*
 model/OLD_model/*
 
 draft.ipynb
-*.png
+# *.png
+plots
 
 # Ignore __pycache__ directories
 __pycache__/
