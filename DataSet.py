@@ -1,8 +1,9 @@
 # sciNeurotech Lab 
 # Theodore
-"""
-in this file, we will define a class in order to process data 
-"""
+
+
+# in this file, we will define a class in order to process data 
+
 
 # import
 import numpy as np

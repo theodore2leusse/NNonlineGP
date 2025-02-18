@@ -1,4 +1,13 @@
-dataset/*
+dataset/emgALLnhp/*
+dataset/emgALLrat/*
+dataset/emgCUSTOMnhp/*
+dataset/pkl_files/*
+dataset/single_map/*
+dataset/test_nhp/*
+dataset/test_rat/*
+
+model/OLD_model/*
+
 draft.ipynb
 *.png
 
