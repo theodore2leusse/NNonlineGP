@@ -1,3 +1,10 @@
+# sciNeurotech Lab 
+# Theodore
+
+
+# in this file, we will define utility functions used across the project.
+
+
 #import libs
 import numpy as np 
 import torch 
