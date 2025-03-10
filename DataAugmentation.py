@@ -5,27 +5,7 @@
 
 # import lib
 import torch
-from botorch.models import SingleTaskGP
-from botorch.utils.transforms import standardize, normalize
-from botorch.fit import fit_gpytorch_mll
-from gpytorch.mlls import ExactMarginalLogLikelihood
-from botorch.acquisition.analytic import (UpperConfidenceBound, 
-                                          ExpectedImprovement,
-                                          NoisyExpectedImprovement, 
-                                          LogExpectedImprovement,
-                                          LogNoisyExpectedImprovement)
-import numpy as np
 from utils import *
-import warnings
-import time
-from tqdm import tqdm
-from scipy.stats import norm
-import math
-import itertools
-import random
-import pickle
-import GPy
-
 
 
 def augment_with_vertical_flip(train_X, train_Y) -> tuple[torch.Tensor, torch.Tensor]:
